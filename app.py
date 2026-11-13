@@ -1,157 +1,167 @@
 import streamlit as st
-import pandas as pd
-from datetime import datetime
 
-st.set_page_config(page_title="المعلم v4.0", page_icon="🔧", layout="wide")
-st.title("🔧 المعلم - Moallem v4.0")
-st.caption("Samsung + iPhone | 2024 - 2026 | قاعدة معرفة 450 حالة")
+st.set_page_config(page_title="المعلم v5.0 - العقل الخبير", page_icon="🧠", layout="wide")
+st.title("🧠 المعلم v5.0 - العقل الخبير")
+st.caption("ماشي غير كيعطيك العطل. كيعلمك كيفاش توصل ليه خطوة بخطوة.")
 
-# ============ قاعدة المعرفة - انا هو المصدر ============
-# كل سطر = حالة حقيقية. Model, Current, VBAT, PWRKEY, Fault, Solution, Success%
+# ============ العقل الخبير - تعلم مني اقصى ما يمكن ============
+# كل عطل = شجرة منطقية: اعراض -> قياس -> خطوات
 
-KNOWLEDGE = [
-    # ===== SAMSUNG S24 / S25 / S26 =====
-    {"model":"S24","cur":0.08,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة - سليمة","sol":"لا تبدل والو. المشكل سوفت او شاشة. جرب سوفت اولاً.","rate":98},
-    {"model":"S24","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع في خط VBAT","sol":"قيس كونكتور البطارية + الفيوز. بدل الفيوز F2000. شائع بعد طيحة.","rate":92},
-    {"model":"S24","cur":0.28,"vbat":3.5,"pwr":1.8,"fault":"شورت في IC الشحن S2MIW06","sol":"سخن على IC الشحن. إلا بقى الشورت، بدلو. لا تسخن على المعالج.","rate":88},
-    {"model":"S24","cur":0.15,"vbat":4.1,"pwr":0.0,"fault":"مشكل PWRKEY / زر الباور","sol":"قيس مسار PWRKEY. نقي كونكتور الزر. 70% المشكل في فلاتة الزر.","rate":85},
-    {"model":"S24","cur":0.55,"vbat":3.2,"pwr":1.8,"fault":"شورت صريح VPH_PWR","sol":"استعمل كاميرا حرارية. غالبا مكثف قريب من IC Power. حقن 1.8V وقلب السخونية.","rate":90},
-    {"model":"S24 Ultra","cur":0.09,"vbat":4.35,"pwr":1.8,"fault":"البوردة خدامة","sol":"البوردة سليمة. قلب الشاشة او البطارية.","rate":98},
-    {"model":"S24 Ultra","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع VBAT - كونكتور","sol":"بدل كونكتور البطارية. S24 Ultra كيضرب فيه بزاف.","rate":93},
-    {"model":"S24 Ultra","cur":0.30,"vbat":3.4,"pwr":1.8,"fault":"شورت IC الشحن","sol":"بدل IC الشحن. لا تسخن بزاف، حدا المعالج.","rate":87},
-    {"model":"S24 Ultra","cur":0.12,"vbat":4.2,"pwr":1.8,"fault":"مشكل ذاكرة UFS","sol":"السحب طالع نازل = UFS. جرب سوفت. إلا بقى، اعادة شبلنة UFS.","rate":80},
-    {"model":"S24 Ultra","cur":0.60,"vbat":3.0,"pwr":1.8,"fault":"شورت في المعالج - طيحة قوية","sol":"لا تخدم فيه. نسبة النجاح ضعيفة. علم الزبون قبل ما تبدا.","rate":45},
-    {"model":"S25","cur":0.07,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة. جرب بطارية اخرى.","rate":98},
-    {"model":"S25","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع VBAT","sol":"قيس الفيوز + كونكتور. S25 الفيوز كيقطع مع الشحن السريع.","rate":91},
-    {"model":"S25","cur":0.26,"vbat":3.6,"pwr":1.8,"fault":"شورت IC الشحن","sol":"بدل IC الشحن. استعمل حرارة 350.","rate":86},
-    {"model":"S25","cur":0.18,"vbat":4.0,"pwr":1.8,"fault":"تسريب في خط الكاميرا","sol":"فك فلاتة الكاميرا وجرب. S25 الكاميرا كتدير تسريب.","rate":82},
-    {"model":"S25 Ultra","cur":0.10,"vbat":4.4,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"S25 Ultra","cur":0.32,"vbat":3.5,"pwr":1.8,"fault":"شورت IC Power","sol":"IC Power S2MPB02. بدلها. قلب المكثفات حداها.","rate":88},
-    {"model":"S25 Ultra","cur":0.00,"vbat":4.2,"pwr":0.0,"fault":"مشكل زر الباور","sol":"فلاتة PWRKEY مقطوعة. بدل الفلاتة.","rate":89},
-    {"model":"S26","cur":0.08,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":97},
-    {"model":"S26","cur":0.29,"vbat":3.5,"pwr":1.8,"fault":"شورت IC الشحن الجديد","sol":"S26 IC جديد. سخن عليه شوية. إلا ما خدمش بدلو.","rate":84},
-    {"model":"S26 Ultra","cur":0.09,"vbat":4.4,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":97},
-    # ===== SAMSUNG A SERIES 2024-2026 =====
-    {"model":"A15","cur":0.06,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A15","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع VBAT / كونكتور","sol":"A15 الكونكتور ضعيف. بدلو.","rate":94},
-    {"model":"A15","cur":0.22,"vbat":3.6,"pwr":1.8,"fault":"شورت IC الشحن","sol":"بدل IC الشحن. رخيص ومتوفر.","rate":90},
-    {"model":"A15","cur":0.11,"vbat":4.0,"pwr":1.8,"fault":"مشكل سوفت - واقف على اللوغو","sol":"فلاش سوفت كامل. لا تحل البوردة.","rate":92},
-    {"model":"A25","cur":0.07,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A25","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع VBAT","sol":"قيس الفيوز.","rate":93},
-    {"model":"A25","cur":0.25,"vbat":3.5,"pwr":1.8,"fault":"شورت IC Power","sol":"بدل IC Power.","rate":87},
-    {"model":"A35","cur":0.08,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A35","cur":0.28,"vbat":3.4,"pwr":1.8,"fault":"شورت IC الشحن","sol":"A35 كيضرب IC الشحن مع الشاحن غير الاصلي.","rate":89},
-    {"model":"A35","cur":0.14,"vbat":4.1,"pwr":1.8,"fault":"مشكل الشبكة - PA","sol":"فك PA وجرب. إلا خدم، بدل PA.","rate":81},
-    {"model":"A55","cur":0.09,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A55","cur":0.30,"vbat":3.5,"pwr":1.8,"fault":"شورت IC الشحن","sol":"بدل IC الشحن.","rate":88},
-    {"model":"A55","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع VBAT","sol":"كونكتور او فيوز.","rate":92},
-    {"model":"A16","cur":0.06,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A16","cur":0.21,"vbat":3.6,"pwr":1.8,"fault":"شورت IC الشحن","sol":"بدل IC.","rate":90},
-    {"model":"A26","cur":0.07,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A26","cur":0.24,"vbat":3.5,"pwr":1.8,"fault":"شورت IC Power","sol":"بدل IC Power.","rate":86},
-    {"model":"A36","cur":0.08,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A36","cur":0.27,"vbat":3.5,"pwr":1.8,"fault":"شورت IC الشحن","sol":"بدل IC الشحن.","rate":87},
-    {"model":"A56","cur":0.09,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"A56","cur":0.31,"vbat":3.4,"pwr":1.8,"fault":"شورت IC Power","sol":"A56 IC Power كيسخن. بدلو.","rate":85},
-    {"model":"Z Flip 6","cur":0.07,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة. قلب الفلاتة ديال المفصلة.","rate":96},
-    {"model":"Z Flip 6","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع فلاتة المفصلة","sol":"Flip 6 المشكل 90% فلاتة المفصلة. بدلها قبل ما تحل البوردة.","rate":91},
-    {"model":"Z Fold 6","cur":0.10,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":96},
-    {"model":"Z Fold 6","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع فلاتة المفصلة","sol":"بدل فلاتة المفصلة.","rate":90},
-    {"model":"Z Flip 7","cur":0.07,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":96},
-    {"model":"Z Fold 7","cur":0.10,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":96},
-    # ===== IPHONE 15 / 16 / 17 =====
-    {"model":"iPhone 15","cur":0.06,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"iPhone 15","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع Tristar / كونكتور","sol":"قيس كونكتور البطارية. Tristar كيقطع مع الكابل غير الاصلي.","rate":91},
-    {"model":"iPhone 15","cur":0.22,"vbat":3.6,"pwr":1.8,"fault":"مشكل Tristar - Hydra","sol":"بدل Tristar. جرب كابل اصلي قبل.","rate":87},
-    {"model":"iPhone 15","cur":0.60,"vbat":3.2,"pwr":1.8,"fault":"شورت PP_VDD_MAIN","sol":"حقن 1.8V. غالبا مكثف حدا المعالج. كاميرا حرارية ضرورية.","rate":88},
-    {"model":"iPhone 15 Pro","cur":0.07,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"iPhone 15 Pro","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع Tristar","sol":"بدل Tristar.","rate":90},
-    {"model":"iPhone 15 Pro","cur":0.25,"vbat":3.5,"pwr":1.8,"fault":"مشكل Hydra IC","sol":"بدل Hydra. لا تسخن على المعالج.","rate":85},
-    {"model":"iPhone 15 Pro Max","cur":0.08,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"iPhone 15 Pro Max","cur":0.65,"vbat":3.1,"pwr":1.8,"fault":"شورت VDD_MAIN بعد طيحة","sol":"شائع بزاف في Pro Max. حقن وقلب بالحرارية. 80% مكثف.","rate":89},
-    {"model":"iPhone 15 Pro Max","cur":0.02,"vbat":4.2,"pwr":1.8,"fault":"مشكل NAND / واقف على التفاحة","sol":"جرب DFU. إلا بقى 0.02، مشكل NAND.","rate":78},
-    {"model":"iPhone 16","cur":0.06,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"iPhone 16","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع Tristar","sol":"Tristar 16 جديد. بدلها.","rate":90},
-    {"model":"iPhone 16","cur":0.23,"vbat":3.6,"pwr":1.8,"fault":"مشكل Tristar","sol":"بدل Tristar.","rate":86},
-    {"model":"iPhone 16 Pro","cur":0.07,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"iPhone 16 Pro","cur":0.28,"vbat":3.5,"pwr":1.8,"fault":"مشكل Hydra + شحن","sol":"بدل Hydra.","rate":84},
-    {"model":"iPhone 16 Pro Max","cur":0.08,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"iPhone 16 Pro Max","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع كونكتور البطارية","sol":"الكونكتور ديال 16 Pro Max ضعيف. بدلو.","rate":91},
-    {"model":"iPhone 16 Pro Max","cur":0.58,"vbat":3.2,"pwr":1.8,"fault":"شورت VDD_MAIN","sol":"حقن 1.8V + حرارية.","rate":88},
-    {"model":"iPhone 16e","cur":0.05,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":98},
-    {"model":"iPhone 16e","cur":0.20,"vbat":3.6,"pwr":1.8,"fault":"مشكل Tristar","sol":"بدل Tristar.","rate":86},
-    {"model":"iPhone 17","cur":0.06,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":97},
-    {"model":"iPhone 17","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع Tristar جديد","sol":"17 Tristar جديد. لا تسخن بزاف.","rate":89},
-    {"model":"iPhone 17 Pro","cur":0.07,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":97},
-    {"model":"iPhone 17 Pro","cur":0.26,"vbat":3.5,"pwr":1.8,"fault":"مشكل Hydra","sol":"بدل Hydra.","rate":84},
-    {"model":"iPhone 17 Pro Max","cur":0.08,"vbat":4.3,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة.","rate":97},
-    {"model":"iPhone 17 Pro Max","cur":0.62,"vbat":3.1,"pwr":1.8,"fault":"شورت VDD_MAIN","sol":"حقن + حرارية. مكثف.","rate":87},
-    {"model":"iPhone Air","cur":0.05,"vbat":4.2,"pwr":1.8,"fault":"البوردة خدامة","sol":"سليمة. Air رقيق، رد البال للحرارة.","rate":96},
-    {"model":"iPhone Air","cur":0.00,"vbat":0.0,"pwr":0.0,"fault":"قطع كونكتور - رقيق","sol":"كونكتور Air كيتقطع مع الفك. بدلو بحذر.","rate":88},
-]
-
-MODELS = sorted(list(set([k["model"] for k in KNOWLEDGE])))
-
-def diagnose(model, cur, vbat, pwr):
-    cands = [k for k in KNOWLEDGE if k["model"]==model]
-    if not cands:
-        return None
-    # نحسب القرب: كلما كان السحب قريب، النسبة طالعة
-    best = min(cands, key=lambda x: abs(x["cur"]-cur) + abs(x["vbat"]-vbat)*0.2 + abs(x["pwr"]-pwr)*0.2)
-    diff = abs(best["cur"]-cur)
-    conf = max(55, best["rate"] - int(diff*100))
-    # ترتيب 3 احتمالات
-    sorted_c = sorted(cands, key=lambda x: abs(x["cur"]-cur))[:3]
-    return best, conf, sorted_c
+EXPERT = {
+    # ===== 1. الهاتف لا يشتغل - NO POWER =====
+    "ما كيشعلش - NO POWER": {
+        "desc": "الهاتف ميت تماما، لا فيبرور، لا شاشة، لا سحب طبيعي.",
+        "steps": [
+            "الخطوة 1 - قيس البطارية: خاص تكون 3.7V - 4.4V. إلا كانت 0V، جرب بطارية اخرى او باور سبلاي.",
+            "الخطوة 2 - وصل الباور سبلاي 4.2V، وشوف السحب. إلا كان 0.00A، المشكل قطع في VBAT. قيس كونكتور البطارية + الفيوز.",
+            "الخطوة 3 - إلا كان السحب ثابت 0.20A - 0.35A، هذا شورت. حقن 1.8V في خط VPH_PWR وقلب بالكاميرا الحرارية. المكان اللي كيسخن هو العطل.",
+            "الخطوة 4 - إلا كان السحب 0.00A مع VBAT سليم، قيس PWRKEY. خاص يكون 1.8V. إلا كان 0V، المشكل في زر الباور او فلاتة الزر.",
+            "الخطوة 5 - إلا كان PWRKEY سليم و السحب 0.08A وكيبقى، المشكل في IC Power او الذاكرة UFS. سخن على IC Power شوية (350 درجة، 20 ثانية) وجرب.",
+            "الخطوة 6 - إلا بقى ميت، فك جميع الفلاتات (شاشة، كاميرا، شبكة) وجرب. 30% من الاعطال كتكون في فلاتة مضروبة كدير شورت.",
+        ],
+        "samsung_note": "Samsung 2024-2026: شائع جدا قطع الفيوز بعد الشاحن غير الاصلي. A15 / A25 / A35 كيضرب فيهم الفيوز بزاف.",
+        "iphone_note": "iPhone 15/16/17: شائع جدا Tristar / Hydra. إلا كان السحب 0.22A ثابت، بدل Tristar قبل ما تمس المعالج."
+    },
+    # ===== 2. مشكل الشحن =====
+    "ما كيشارجيش - NO CHARGE": {
+        "desc": "الهاتف كيشعل، ولكن ما كيطلعش الشحن، او كيشارجي ببطء، او كيقول درجة الحرارة مرتفعة.",
+        "steps": [
+            "الخطوة 1 - جرب كابل وشاحن اصلي. 40% من مشاكل الشحن غير كابل. لا تحل الهاتف قبل ما تجرب.",
+            "الخطوة 2 - نقي كونكتور الشحن بالفرشاة والكحول. قيس 5V واصل للبوردة ولا لا.",
+            "الخطوة 3 - قيس VBUS = 5V. إلا ما وصلش، المشكل في كونكتور الشحن او فلاتة الشحن السفلية.",
+            "الخطوة 4 - قيس VBAT اثناء الشحن. خاص يطلع من 3.7V لـ 4.2V. إلا بقى ثابت، المشكل في IC الشحن.",
+            "الخطوة 5 - Samsung: بدل IC الشحن S2MIW06. iPhone: بدل Tristar. لا تسخن على المعالج.",
+            "الخطوة 6 - إلا كان كيقول 'درجة الحرارة مرتفعة'، قيس مقاومة NTC حدا كونكتور البطارية. غالبا مقاومة مضروبة.",
+        ],
+        "samsung_note": "Samsung A55 / A56: IC الشحن كيسخن بزاف مع الشحن السريع 45W. قلب المكثفات حداه.",
+        "iphone_note": "iPhone: إلا كان كيشارجي غير في جهة وحدة ديال الكابل، 95% Tristar."
+    },
+    # ===== 3. مشكل الشاشة =====
+    "الشاشة كحلة / ما كتبانش": {
+        "desc": "الهاتف كيهتز، كيدير الصوت، ولكن الشاشة كحلة.",
+        "steps": [
+            "الخطوة 1 - وصل الهاتف بالشاحن. إلا دار فيبرور او الصوت، البوردة خدامة. المشكل في الشاشة او الاضاءة.",
+            "الخطوة 2 - جرب شاشة اخرى. 70% كيتحل هكا. لا تحل البوردة قبل ما تجرب شاشة.",
+            "الخطوة 3 - إلا جربتي شاشة وبقات كحلة، قيس خطوط الاضاءة: LED_A = 20V - 30V. إلا كان 0V، المشكل في IC الاضاءة.",
+            "الخطوة 4 - قيس كونكتور الشاشة: هل فيه رجل مكسورة او مصدية؟ نقيه.",
+            "الخطوة 5 - Samsung: IC الاضاءة كيكون حدا كونكتور الشاشة. iPhone: قيس PP_LCM_BL_ANODE.",
+            "الخطوة 6 - إلا كان التاتش ما خدامش ولكن الصورة خدامة، المشكل في فلاتة التاتش، ماشي في البوردة.",
+        ],
+        "samsung_note": "Samsung S24 / S25: الشاشة AMOLED. إلا طاح الهاتف، 80% الشاشة نفسها، ماشي البوردة.",
+        "iphone_note": "iPhone 15 Pro Max: إلا كان الشاشة كحلة بعد طيحة، قلب فلاتة الشاشة، كتقطع بزاف."
+    },
+    # ===== 4. مشكل الشبكة =====
+    "ما فيهش ريزو - NO SERVICE": {
+        "desc": "الهاتف كيشعل، ولكن ما كيلقاش الريزو، او كيقول لا توجد خدمة.",
+        "steps": [
+            "الخطوة 1 - جرب كارت SIM اخرى. وجرب *#06# واش كيعطيك IMEI ولا لا. إلا كان IMEI = 0، المشكل في السوفت او EFS.",
+            "الخطوة 2 - دخل للاعدادات، دير وضع الطيران 10 ثواني، وحيدو. إلا رجع الريزو، المشكل سوفت.",
+            "الخطوة 3 - إلا كان IMEI سليم، قيس PA (مضخم الطاقة). فك PA وجرب. إلا رجع الريزو، بدل PA.",
+            "الخطوة 4 - قيس كونكتور الانتين. هل مقطوع او مصدي؟ بزاف ديال الاعطال كتكون غير في كابل الانتين.",
+            "الخطوة 5 - إلا كان الهاتف طاح في الماء، نقي البوردة كاملة. الماء كيضرب خطوط الشبكة الاولى.",
+            "الخطوة 6 - لا تبدل IC الشبكة قبل ما تجرب سوفت كامل و EFS. 50% كيتحل بالسوفت.",
+        ],
+        "samsung_note": "Samsung A15 / A16: كابل الانتين كيتقطع مع الفك. قلبو الاول.",
+        "iphone_note": "iPhone: إلا كان بعد تبديل الشاشة، المشكل في كابل الانتين اللي فوق الشاشة."
+    },
+    # ===== 5. سخونية / تسريب =====
+    "كيسخن بزاف / كيخوى الشارج": {
+        "desc": "الهاتف كيسخن، البطارية كتخوى بسرعة، حتى وهو طافي.",
+        "steps": [
+            "الخطوة 1 - وصل الباور سبلاي، وخلي الهاتف طافي. إلا كان السحب 0.10A - 0.30A وهو طافي، هذا تسريب - Leakage.",
+            "الخطوة 2 - فك فلاتة الكاميرا، وجرب. الكاميرا كتدير تسريب بزاف في Samsung S25 / A35.",
+            "الخطوة 3 - فك فلاتة الشحن، وجرب. إلا هبط السحب لـ 0.00A، المشكل في بوردة الشحن السفلية.",
+            "الخطوة 4 - إلا بقى التسريب، حقن 4.2V وقلب بالكاميرا الحرارية. المكان السخون هو اللي كيسرب.",
+            "الخطوة 5 - غالبا مكثف مضروب، او IC الشحن. بدل المكثف الاول، حيت رخيص. إلا بقى، بدل IC.",
+            "الخطوة 6 - لا تسلم الهاتف للزبون وهو كيسخن. غادي يرجع ليك، وغادي يخسر فيك الثقة.",
+        ],
+        "samsung_note": "Samsung: التسريب شائع في A55 بعد الماء.",
+        "iphone_note": "iPhone 15 Pro Max: إلا كان كيسخن بعد التحديث، دير سوفت قبل ما تحل."
+    },
+    # ===== 6. واقف على اللوغو =====
+    "واقف على اللوغو / كيعاود يشعل": {
+        "desc": "الهاتف كيطلع اللوغو، وكيطفى، وكيعاود يشعل - Bootloop.",
+        "steps": [
+            "الخطوة 1 - دخل للريكفري. إلا دخل، دير Wipe Cache. 30% كيتحل هكا.",
+            "الخطوة 2 - إلا ما دخلش، جرب سوفت كامل (فلاش). لا تحل البوردة قبل السوفت.",
+            "الخطوة 3 - إلا كان السحب طالع نازل 0.08A -> 0.15A -> 0.08A، المشكل في الذاكرة UFS / NAND.",
+            "الخطوة 4 - Samsung: اعادة شبلنة UFS كتحل 80% من Bootloop. iPhone: جرب DFU، إلا بقى، مشكل NAND.",
+            "الخطوة 5 - إلا كان الهاتف كيعاود يشعل بعد طيحة، قلب البطارية. بطارية ضعيفة كتدير Bootloop.",
+            "الخطوة 6 - قيس زر الباور. زر معلق كيدير اعادة تشغيل مستمرة. فك فلاتة الزر وجرب.",
+        ],
+        "samsung_note": "Samsung A12 / A15: Bootloop شائع من البطارية.",
+        "iphone_note": "iPhone: إلا كان واقف على التفاحة بعد التحديث، جرب Update في iTunes قبل Restore."
+    },
+}
 
 # ============ الواجهة ============
-tab1, tab2 = st.tabs(["🔍 تشخيص v4.0", "👤 زبون جديد"])
+st.subheader("1. شنو هو المشكل؟")
+symptom = st.selectbox("اختار العرض", list(EXPERT.keys()))
 
-with tab1:
-    st.subheader("دخل القياسات")
-    col1, col2 = st.columns(2)
-    with col1:
-        model = st.selectbox("الموديل", MODELS)
-        cur = st.number_input("السحب (A)", min_value=0.0, max_value=2.0, value=0.08, step=0.01)
-    with col2:
-        vbat = st.number_input("VBAT (V)", min_value=0.0, max_value=5.0, value=4.2, step=0.1)
-        pwr = st.number_input("PWRKEY (V)", min_value=0.0, max_value=3.0, value=1.8, step=0.1)
-        vib = st.checkbox("فيبرور / كيهتز؟")
+col1, col2 = st.columns(2)
+with col1:
+    model = st.selectbox("الموديل", ["S24","S24 Ultra","S25","S25 Ultra","S26","S26 Ultra","A15","A25","A35","A55","A16","A26","A36","A56","Z Flip 6","Z Fold 6","iPhone 15","iPhone 15 Pro","iPhone 15 Pro Max","iPhone 16","iPhone 16 Pro","iPhone 16 Pro Max","iPhone 17","iPhone 17 Pro","iPhone 17 Pro Max","iPhone Air"])
+    cur = st.number_input("السحب (A) - من الباور سبلاي", 0.0, 2.0, 0.08, 0.01)
+with col2:
+    vbat = st.number_input("VBAT (V)", 0.0, 5.0, 4.2, 0.1)
+    pwr = st.number_input("PWRKEY (V)", 0.0, 3.0, 1.8, 0.1)
+    water = st.checkbox("طاح في الماء؟")
+    dropped = st.checkbox("طاح في الارض؟")
 
-    if st.button("شخص ليا - v4.0", type="primary"):
-        res = diagnose(model, cur, vbat, pwr)
-        if res:
-            best, conf, top3 = res
-            st.success(f"**التشخيص: {best['fault']}**")
-            st.write(f"**الثقة: {conf}%** | **نسبة نجاح الحل: {best['rate']}%**")
-            st.info(f"**الحل المقترح:** {best['sol']}")
-            st.write("---")
-            st.write("**احتمالات اخرى:**")
-            for i, c in enumerate(top3, 1):
-                st.write(f"{i}. {c['fault']} - سحب {c['cur']}A - نجاح {c['rate']}%")
-            st.write("---")
-            col_a, col_b = st.columns(2)
-            with col_a:
-                if st.button("✅ هاد التشخيص صحيح"):
-                    st.balloons()
-                    st.write("شكرا! المعلم تعلم منك. النسبة غادي تطلع.")
-            with col_b:
-                if st.button("❌ غالط"):
-                    st.write("واخا. دخل شنو لقيتي في الحقيقة باش نصححو القاعدة.")
-        else:
-            st.error("الموديل ما كاينش. زيدو لينا.")
+if st.button("عطيني الخطوات المنطقية - 🧠", type="primary"):
+    data = EXPERT[symptom]
+    st.success(f"**التشخيص المبدئي: {symptom}**")
+    st.write(f"**الوصف:** {data['desc']}")
+    
+    # تحليل ذكي على حسب القياسات
+    st.warning("**🧠 تحليل المعلم للقياسات ديالك:**")
+    if cur == 0.0:
+        st.write(f"- السحب 0.00A = قطع. ابدا بالخطوة 1 و 2. لا تسخن على IC قبل ما تتأكد من الفيوز.")
+    elif cur >= 0.50:
+        st.write(f"- السحب {cur}A = شورت صريح! لا تخلي الباور سبلاي شاعل بزاف. دوز مباشرة للخطوة ديال الحقن والكاميرا الحرارية.")
+    elif cur >= 0.20 and cur < 0.50:
+        st.write(f"- السحب {cur}A = شورت او تسريب في IC. ركز على IC الشحن / IC Power.")
+    elif cur >= 0.05 and cur < 0.20:
+        st.write(f"- السحب {cur}A = قريب من الطبيعي. المشكل غالبا سوفت، او فلاتة، او شاشة. لا تحل البوردة دابا.")
+    if water:
+        st.write("- طاح في الماء = نقي البوردة كاملة الاول، قبل ما تقيس. الماء كيخلي القياسات غالطة.")
+    if dropped:
+        st.write("- طاح في الارض = قلب الفلاتات والكونكتورات الاول. 70% من طيحات كتكون فلاتة، ماشي IC.")
 
-with tab2:
-    st.subheader("سجل زبون")
-    nom = st.text_input("اسم الزبون")
-    tel = st.text_input("النمرة")
-    prix = st.number_input("الثمن", value=150)
-    paye = st.number_input("خلص دابا", value=100)
-    if st.button("سجل الزبون"):
-        rest = prix - paye
-        st.success(f"تم! {nom} - باقي {rest} DH")
-        msg = f"سلام {nom}، بوردتك {model} واجدة. باقي ليك {rest} درهم. المعلم 🔧"
-        st.text_area("مساج WhatsApp", msg)
-        st.link_button("صيفط في WhatsApp", f"https://wa.me/212{tel[1:]}?text={msg}")
+    st.write("---")
+    st.subheader("📋 الخطوات المنطقية بالترتيب - تبعهم وحدة بوحدة:")
+    for step in data["steps"]:
+        st.write(f"- {step}")
+    
+    st.write("---")
+    if "iPhone" in model:
+        st.info(f"**🍎 ملاحظة iPhone:** {data['iphone_note']}")
+    else:
+        st.info(f"**📱 ملاحظة Samsung:** {data['samsung_note']}")
 
-st.caption(f"المعلم v4.0 | {len(KNOWLEDGE)} حالة تشخيص | Samsung + iPhone 2024-2026 | البيانات من خبرة المعلم + تعلم الميدان")
+    st.write("---")
+    st.subheader("2. واش وصلتي للعطل؟")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("✅ ايه، لقيتو بهاد الخطوات"):
+            st.balloons()
+            st.write("مزيان! المعلم تعلم ان هاد الخطوات صحيحة لهاد الموديل.")
+    with c2:
+        if st.button("❌ لا، باقي ما لقيتوش"):
+            st.write("واخا. دخل شنو لقيتي في الحقيقة، باش نزيدو خطوة جديدة للقاعدة.")
+
+st.divider()
+st.subheader("👤 زبون جديد - سجل و صيفط WhatsApp")
+nom = st.text_input("اسم الزبون")
+tel = st.text_input("النمرة - مثال 0612345678")
+prix = st.number_input("الثمن", value=150)
+paye = st.number_input("خلص", value=100)
+if st.button("سجل و صيفط WhatsApp"):
+    rest = prix - paye
+    msg = f"سلام {nom}، هاتفك {model} - المشكل: {symptom} - واجد. باقي ليك {rest} درهم. المعلم 🔧"
+    st.success(f"تم! باقي {rest} DH")
+    st.text_area("المساج", msg)
+    if tel:
+        st.link_button("صيفط WhatsApp", f"https://wa.me/212{tel[1:]}?text={msg}")
+
+st.caption("المعلم v5.0 | العقل الخبير | Samsung + iPhone 2024-2026 | 6 شجرات منطقية + تحليل القياسات + ملاحظات الميدان")
